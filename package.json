@@ -88,7 +88,9 @@
     "watch-tests": "tsc -p . -w --outDir out",
     "pretest": "npm run compile-tests && npm run compile",
     "check-types": "tsc --noEmit",
-    "lint": "eslint src --ext ts",
+    "lint": "eslint src",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx}\"",
     "test": "vscode-test"
   },
   "devDependencies": {
@@ -101,8 +103,12 @@
     "@vscode/test-electron": "^2.4.1",
     "esbuild": "^0.23.1",
     "eslint": "^9.9.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
     "npm-run-all": "^4.1.5",
-    "typescript": "^5.5.4"
+    "prettier": "^3.8.1",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.56.0"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.78.0",

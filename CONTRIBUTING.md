@@ -50,6 +50,9 @@ First off, thank you for considering contributing to Cogento! It's people like y
 
 ## Coding Standards
 
+- **Linting & Formatting**: We use ESLint and Prettier to maintain code quality.
+  - Run `npm run lint` to check for errors.
+  - Run `npm run format` to automatically format your code.
 - **TypeScript**: Use strict type-checking where possible.
 - **CSS**: Use the VS Code theme variables (`var(--vscode-...)`) to ensure theme compatibility.
 - **Icons**: Use SVG for icons inside the webview, and monochromatic icons for the sidebar.
