@@ -4,7 +4,7 @@
   "publisher": "sodiadrhain",
   "icon": "media/icon.png",
   "description": "Open Source AI Coding Agent - VS Code Extension",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "engines": {
     "vscode": "^1.93.0"
   },
