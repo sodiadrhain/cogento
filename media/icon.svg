@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <!-- Outer Circle -->
+  <circle cx="50" cy="50" r="46" fill="none" stroke="currentColor" stroke-width="5" />
+  
+  <!-- Inner Squircle (Rounded Square/Terminal) -->
+  <rect x="24" y="24" width="52" height="52" rx="10" fill="none" stroke="currentColor" stroke-width="5" />
+  
+  <!-- Code Symbol inside Squircle -->
+  <path d="M42 44 L36 50 L42 56 M58 44 L64 50 L58 56 M48 60 L52 40" 
+        fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" />
+</svg>

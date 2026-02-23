@@ -1,0 +1,29 @@
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# Build
+out/
+dist/
+*.vsix
+
+# VS Code
+.vscode-test/
+.history/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets/Temp
+.env
+*.log
+tmp/
+.vscode/extensions.json
+.vscode/launch.json
+.vscode/tasks.json
+
+# Workspace State
+.cogento-history/
+conversations.json

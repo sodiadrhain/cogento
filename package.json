@@ -1,0 +1,113 @@
+{
+  "name": "cogento",
+  "displayName": "Cogento AI Coding Agent",
+  "publisher": "Adesoji Awobajo",
+  "description": "Open Source AI Coding Agent - VS Code Extension",
+  "version": "0.1.0",
+  "engines": {
+    "vscode": "^1.93.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sodiadrhain/cogento"
+  },
+  "bugs": {
+    "url": "https://github.com/sodiadrhain/cogento/issues"
+  },
+  "homepage": "https://github.com/sodiadrhain/cogento#readme",
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "cogento.start",
+        "title": "Start Cogento AI Agent"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "cogento-sidebar",
+          "title": "Cogento",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "cogento-sidebar": [
+        {
+          "type": "webview",
+          "id": "cogento.chatView",
+          "name": "Chat",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Cogento Settings",
+      "properties": {
+        "cogento.apiKeys.openai": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API Key for Cogento Agent"
+        },
+        "cogento.apiKeys.anthropic": {
+          "type": "string",
+          "default": "",
+          "description": "Anthropic API Key for Cogento Agent"
+        },
+        "cogento.apiKeys.gemini": {
+          "type": "string",
+          "default": "",
+          "description": "Google Gemini API Key for Cogento Agent"
+        },
+        "cogento.provider": {
+          "type": "string",
+          "default": "openai",
+          "enum": [
+            "openai",
+            "anthropic",
+            "gemini"
+          ],
+          "description": "Default LLM Provider"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "npm run check-types && node esbuild.js",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "package": "npm run check-types && node esbuild.js --production",
+    "compile-tests": "tsc -p . --outDir out",
+    "watch-tests": "tsc -p . -w --outDir out",
+    "pretest": "npm run compile-tests && npm run compile",
+    "check-types": "tsc --noEmit",
+    "lint": "eslint src --ext ts",
+    "test": "vscode-test"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.7",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.93.0",
+    "@typescript-eslint/eslint-plugin": "^8.3.0",
+    "@typescript-eslint/parser": "^8.3.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "esbuild": "^0.23.1",
+    "eslint": "^9.9.1",
+    "npm-run-all": "^4.1.5",
+    "typescript": "^5.5.4"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.78.0",
+    "@google/genai": "^1.42.0",
+    "@modelcontextprotocol/sdk": "^1.26.0",
+    "openai": "^6.22.0"
+  }
+}
