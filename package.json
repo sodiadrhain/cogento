@@ -2,6 +2,7 @@
   "name": "cogento",
   "displayName": "Cogento AI Coding Agent",
   "publisher": "sodiadrhain",
+  "icon": "media/icon.png",
   "description": "Open Source AI Coding Agent - VS Code Extension",
   "version": "0.1.0",
   "engines": {
