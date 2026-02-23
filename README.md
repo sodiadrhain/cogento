@@ -2,8 +2,6 @@
 
 **Cogento** is an open-source AI-powered coding agent built for VS Code. It combines a conversational chat interface with direct workspace interactions, allowing you to build, debug, and refactor code with the power of LLMs.
 
-![Activity Bar Icon](media/icon.svg)
-
 ## 🚀 Features
 
 - **Multi-Provider Support**: Switch seamlessly between OpenAI (GPT-4), Anthropic (Claude 3.5), and Google Gemini.

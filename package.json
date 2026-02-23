@@ -1,7 +1,7 @@
 {
   "name": "cogento",
   "displayName": "Cogento AI Coding Agent",
-  "publisher": "Adesoji Awobajo",
+  "publisher": "sodiadrhain",
   "description": "Open Source AI Coding Agent - VS Code Extension",
   "version": "0.1.0",
   "engines": {
@@ -101,6 +101,7 @@
     "@typescript-eslint/parser": "^8.3.0",
     "@vscode/test-cli": "^0.0.10",
     "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.7.1",
     "esbuild": "^0.23.1",
     "eslint": "^9.9.1",
     "eslint-config-prettier": "^10.1.8",
