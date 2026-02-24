@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import Anthropic from '@anthropic-ai/sdk';
-import { LLMProvider, ModelInput, Token } from './provider';
-import { extractErrorMessage } from '../utils/errorUtils';
+import { CogentoTimeoutError, LLMProvider, ModelInput, Token } from './provider';
 
 export class AnthropicProvider implements LLMProvider {
   private client: Anthropic;
@@ -35,7 +34,7 @@ export class AnthropicProvider implements LLMProvider {
                 type: 'image',
                 source: {
                   type: 'base64',
-                  media_type: mimeType as any,
+                  media_type: mimeType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
                   data: base64,
                 },
               };
@@ -51,40 +50,67 @@ export class AnthropicProvider implements LLMProvider {
       }
     }
 
+    let timeoutOccurred = false;
+    let timeoutId: NodeJS.Timeout | null = null;
+    const controller = new AbortController();
+
+    const resetTimeout = () => {
+      if (timeoutId) clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        timeoutOccurred = true;
+        controller.abort();
+      }, 60000);
+    };
+
+    cancelToken.onCancellationRequested(() => {
+      if (timeoutId) clearTimeout(timeoutId);
+      controller.abort();
+    });
+
     try {
       const systemContent =
         input.systemPrompt +
         '\n\nImportant: You must strictly return ONLY a JSON object evaluating the tools. No preamble.';
 
-      const stream = await this.client.messages.create({
-        model: 'claude-3-5-sonnet-latest',
-        max_tokens: 4000,
-        system: systemContent,
-        messages: messages,
-        stream: true,
-      });
-
-      cancelToken.onCancellationRequested(() => {
-        stream.controller.abort();
-      });
+      resetTimeout();
+      const model =
+        vscode.workspace.getConfiguration('cogento').get<string>('anthropicModel') ??
+        'claude-sonnet-4-5';
+      const stream = await this.client.messages.create(
+        {
+          model,
+          max_tokens: 4000,
+          system: systemContent,
+          messages: messages,
+          stream: true,
+        },
+        { signal: controller.signal },
+      );
 
       for await (const chunk of stream) {
+        resetTimeout();
         if (chunk.type === 'content_block_delta' && chunk.delta.type === 'text_delta') {
           yield { text: chunk.delta.text, isFinished: false };
         }
       }
+      if (timeoutId) clearTimeout(timeoutId);
       yield { text: '', isFinished: true };
-    } catch (error: any) {
-      console.error('Anthropic API Error:', error);
-      const cleanMessage = extractErrorMessage(error);
-      yield {
-        text: JSON.stringify({
-          reasoning: `API Error: ${cleanMessage}`,
-          isFinished: true,
-          finalAnswer: `I encountered an API error: ${cleanMessage}`,
-        }),
-        isFinished: true,
-      };
+    } catch (err: unknown) {
+      if (timeoutId) clearTimeout(timeoutId);
+      const e = err as Error;
+      const isAbort =
+        e.name === 'AbortError' || (e.message && e.message.toLowerCase().includes('abort'));
+
+      if (isAbort) {
+        if (cancelToken.isCancellationRequested) {
+          return;
+        }
+        if (timeoutOccurred) {
+          throw new CogentoTimeoutError();
+        }
+      }
+      console.error('Anthropic API Error:', err);
+      throw err;
     }
   }
 }

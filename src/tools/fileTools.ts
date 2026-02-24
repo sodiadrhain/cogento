@@ -17,7 +17,7 @@ export class ReadFileTool implements AgentTool {
 
   async execute(
     input: { filePath: string },
-    onProgress?: (data: string) => void,
+    _onProgress?: (data: string) => void,
   ): Promise<ToolResult> {
     if (!this.workspaceRoot) {
       return {
@@ -32,8 +32,9 @@ export class ReadFileTool implements AgentTool {
       const data = await vscode.workspace.fs.readFile(uri);
       const content = new TextDecoder('utf-8').decode(data);
       return { success: true, output: content };
-    } catch (error: any) {
-      return { success: false, output: '', error: error.message };
+    } catch (err: unknown) {
+      const e = err as Error;
+      return { success: false, output: '', error: e.message };
     }
   }
 }
@@ -58,16 +59,21 @@ export class WriteFileTool implements AgentTool {
 
   constructor(private workspaceRoot: string) {}
 
-  async getPreExecutionInfo(input: { filePath: string; contentLines: string[] }): Promise<any> {
+  async getPreExecutionInfo(input: { filePath: string; contentLines: string[] }): Promise<unknown> {
     if (!this.workspaceRoot) return null;
     try {
       const absolutePath = path.resolve(this.workspaceRoot, input.filePath);
       const uri = vscode.Uri.file(absolutePath);
       let oldContent = '';
       try {
-        const data = await vscode.workspace.fs.readFile(uri);
-        oldContent = new TextDecoder('utf-8').decode(data);
-      } catch (e) {
+        const stat = await vscode.workspace.fs.stat(uri);
+        if (stat.size > 1024 * 1024) {
+          oldContent = '(File too large for diff > 1MB)';
+        } else {
+          const data = await vscode.workspace.fs.readFile(uri);
+          oldContent = new TextDecoder('utf-8').decode(data);
+        }
+      } catch {
         // File might be new
       }
       return {
@@ -76,7 +82,7 @@ export class WriteFileTool implements AgentTool {
         oldContent,
         newContent: (input.contentLines || []).join('\n'),
       };
-    } catch (error) {
+    } catch {
       return null;
     }
   }
@@ -97,10 +103,112 @@ export class WriteFileTool implements AgentTool {
       const uri = vscode.Uri.file(absolutePath);
       const content = (input.contentLines || []).join('\n');
       const data = new TextEncoder().encode(content);
+      if (onProgress) {
+        onProgress(`Writing approved changes to ${input.filePath}...\n`);
+      }
       await vscode.workspace.fs.writeFile(uri, data);
       return { success: true, output: `Successfully wrote to ${input.filePath}` };
-    } catch (error: any) {
-      return { success: false, output: '', error: error.message };
+    } catch (err: unknown) {
+      const e = err as Error;
+      return { success: false, output: '', error: e.message };
+    }
+  }
+}
+
+export class WriteMultipleFilesTool implements AgentTool {
+  name = 'writeMultipleFiles';
+  description = 'Writes content to multiple files at once. Overwrites if they exist.';
+  schema = {
+    type: 'object',
+    properties: {
+      files: {
+        type: 'array',
+        description: 'Array of file modifications',
+        items: {
+          type: 'object',
+          properties: {
+            filePath: { type: 'string', description: 'Path to write.' },
+            contentLines: {
+              type: 'array',
+              items: { type: 'string' },
+              description:
+                'An array of strings, where each string is a line of the file. Do NOT include manual \\n escapes.',
+            },
+          },
+          required: ['filePath', 'contentLines'],
+        },
+      },
+    },
+    required: ['files'],
+  };
+  requiresApproval = true;
+
+  constructor(private workspaceRoot: string) {}
+
+  async getPreExecutionInfo(input: {
+    files: { filePath: string; contentLines: string[] }[];
+  }): Promise<unknown> {
+    if (!this.workspaceRoot || !input.files) return null;
+    try {
+      const changes = [];
+      for (const file of input.files) {
+        const absolutePath = path.resolve(this.workspaceRoot, file.filePath);
+        const uri = vscode.Uri.file(absolutePath);
+        let oldContent = '';
+        try {
+          const stat = await vscode.workspace.fs.stat(uri);
+          if (stat.size > 1024 * 1024) {
+            oldContent = '(File too large for diff > 1MB)';
+          } else {
+            const data = await vscode.workspace.fs.readFile(uri);
+            oldContent = new TextDecoder('utf-8').decode(data);
+          }
+        } catch {
+          // File might be new
+        }
+        changes.push({
+          filePath: file.filePath,
+          oldContent,
+          newContent: (file.contentLines || []).join('\n'),
+        });
+      }
+      return {
+        type: 'multi_file_change',
+        changes,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async execute(
+    input: { files: { filePath: string; contentLines: string[] }[] },
+    onProgress?: (data: string) => void,
+  ): Promise<ToolResult> {
+    if (!this.workspaceRoot) {
+      return {
+        success: false,
+        output: '',
+        error: 'No workspace folder is open. Please open a folder in VS Code first.',
+      };
+    }
+    try {
+      const outputs = [];
+      for (const file of input.files || []) {
+        if (onProgress) {
+          onProgress(`Writing approved changes to ${file.filePath}...\n`);
+        }
+        const absolutePath = path.resolve(this.workspaceRoot, file.filePath);
+        const uri = vscode.Uri.file(absolutePath);
+        const content = (file.contentLines || []).join('\n');
+        const data = new TextEncoder().encode(content);
+        await vscode.workspace.fs.writeFile(uri, data);
+        outputs.push(`Successfully wrote to ${file.filePath}`);
+      }
+      return { success: true, output: outputs.join('\n') };
+    } catch (err: unknown) {
+      const e = err as Error;
+      return { success: false, output: '', error: e.message };
     }
   }
 }

@@ -26,6 +26,11 @@
       {
         "command": "cogento.start",
         "title": "Start Cogento AI Agent"
+      },
+      {
+        "command": "cogento.openSettings",
+        "title": "Open Settings",
+        "icon": "$(settings-gear)"
       }
     ],
     "viewsContainers": {
@@ -42,8 +47,17 @@
         {
           "type": "webview",
           "id": "cogento.chatView",
-          "name": "Chat",
+          "name": "",
           "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "cogento.openSettings",
+          "when": "view == cogento.chatView",
+          "group": "navigation"
         }
       ]
     },
@@ -74,6 +88,59 @@
             "gemini"
           ],
           "description": "Default LLM Provider"
+        },
+        "cogento.geminiModel": {
+          "type": "string",
+          "default": "gemini-3.1-pro-preview",
+          "enum": [
+            "gemini-3.1-pro-preview",
+            "gemini-3-pro-preview",
+            "gemini-3-flash-preview",
+            "gemini-2.5-pro",
+            "gemini-2.5-flash"
+          ],
+          "enumDescriptions": [
+            "Gemini 3.1 Pro (Preview) — Latest preview, advanced reasoning and world knowledge (recommended)",
+            "Gemini 3 Pro (Preview) — High quality complex reasoning model",
+            "Gemini 3 Flash (Preview) — Fast throughput model with pro-level intelligence",
+            "Gemini 2.5 Pro — Stable highly capable model",
+            "Gemini 2.5 Flash — Stable fast model"
+          ],
+          "description": "Gemini model to use for code generation"
+        },
+        "cogento.openaiModel": {
+          "type": "string",
+          "default": "gpt-4o",
+          "enum": [
+            "gpt-4o",
+            "gpt-4o-mini",
+            "o3-mini",
+            "gpt-4-turbo"
+          ],
+          "enumDescriptions": [
+            "GPT-4o — Best overall coding model (recommended)",
+            "GPT-4o Mini — Faster and cheaper, good for simpler tasks",
+            "o3-mini — Strong reasoning, great for complex problem solving",
+            "GPT-4 Turbo — Previous generation, large context window"
+          ],
+          "description": "OpenAI model to use for code generation"
+        },
+        "cogento.anthropicModel": {
+          "type": "string",
+          "default": "claude-sonnet-4-5",
+          "enum": [
+            "claude-opus-4-5",
+            "claude-sonnet-4-5",
+            "claude-haiku-4-5",
+            "claude-3-7-sonnet-latest"
+          ],
+          "enumDescriptions": [
+            "Claude Opus 4.5 — Most capable, best for large complex codebases",
+            "Claude Sonnet 4.5 — Best balance of speed and quality (recommended)",
+            "Claude Haiku 4.5 — Fastest and cheapest, good for quick edits",
+            "Claude 3.7 Sonnet — Previous generation, strong coding performance"
+          ],
+          "description": "Anthropic model to use for code generation"
         }
       }
     }

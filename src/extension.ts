@@ -3,7 +3,7 @@ import { ChatViewProvider } from './webview/ChatViewProvider';
 import { ConversationManager } from './store/ConversationManager';
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('Cogento extension is now active!');
+  console.info('Cogento extension is now active!');
 
   const conversationManager = new ConversationManager(context);
   const provider = new ChatViewProvider(context.extensionUri, conversationManager);
@@ -19,7 +19,12 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.executeCommand('cogento.chatView.focus');
   });
 
-  context.subscriptions.push(startDisposable);
+  // Provide a command to open extension settings
+  const settingsDisposable = vscode.commands.registerCommand('cogento.openSettings', () => {
+    vscode.commands.executeCommand('workbench.action.openSettings', '@ext:sodiadrhain.cogento');
+  });
+
+  context.subscriptions.push(startDisposable, settingsDisposable);
 }
 
 export function deactivate() {}

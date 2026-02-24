@@ -1,4 +1,4 @@
-export function extractErrorMessage(error: any): string {
+export function extractErrorMessage(error: unknown): string {
   if (!error) return 'An unknown error occurred.';
 
   // If it's a string, try to parse it as JSON once, then treat as object
@@ -14,12 +14,17 @@ export function extractErrorMessage(error: any): string {
   return extractFromObject(error);
 }
 
-function extractFromObject(obj: any): string {
-  if (!obj) return 'An unknown error occurred.';
+function extractFromObject(obj: unknown): string {
+  if (!obj || typeof obj !== 'object') return 'An unknown error occurred.';
+
+  const record = obj as Record<string, unknown>;
 
   // 1. Direct message or error.message
   const msg =
-    obj.message || (obj.error && typeof obj.error === 'object' ? obj.error.message : obj.error);
+    record.message ||
+    (record.error && typeof record.error === 'object'
+      ? (record.error as Record<string, unknown>).message
+      : record.error);
 
   if (msg && typeof msg === 'string') {
     // If the message itself is stringified JSON (common in Gemini), parse it
@@ -35,9 +40,15 @@ function extractFromObject(obj: any): string {
   }
 
   // 2. Common code/status fields
-  const code = obj.code || obj.status || (obj.error && obj.error.code);
+  const code =
+    record.code ||
+    record.status ||
+    (record.error && (record.error as Record<string, unknown>).code);
   if (code && typeof code !== 'object') {
-    const statusText = obj.statusText || obj.status || (obj.error && obj.error.status);
+    const statusText =
+      record.statusText ||
+      record.status ||
+      (record.error && (record.error as Record<string, unknown>).status);
     return `Error ${code}${statusText ? ': ' + statusText : ''}`;
   }
 

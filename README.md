@@ -4,14 +4,16 @@
 
 ## 🚀 Features
 
-- **Multi-Provider Support**: Switch seamlessly between OpenAI (GPT-4), Anthropic (Claude 3.5), and Google Gemini.
+- **Multi-Provider Support**: Switch seamlessly between OpenAI (GPT-4o), Anthropic (Claude 3.5), and Google Gemini (featuring the latest **Gemini 3 Pro/Flash Preview** models).
+- **Workspace Context Awareness**: Cogento automatically indexes your project structure and tech stack on startup, providing the LLM with immediate architectural context.
 - **Agentic Workflows**: Cogento can read files, write code, run terminal commands, and search your codebase.
 - **Interactive Chat**:
-  - **Copy Code**: One-click copy for all generated blocks.
-  - **Restore Messages**: Quickly edit and resend previous messages.
+  - **Copy Code**: One-click copy for all generated blocks via inline icons.
   - **Auto-complete Mentions**: Type `@` to suggest and include workspace files and folders in your prompt.
+  - **Restore & Retry**: Quickly edit previous messages, or use the robust **"Retry Request"** recovery button if a complex LLM generation times out.
+- **Top-Bar Controls**: Instantly access your API keys and provider configurations via the new Header Settings gear icon.
 - **Multimodal Support**: Attach images to your prompts for visual context.
-- **Clean UI**: A borderless, theme-aware layout that fits perfectly into your VS Code workspace.
+- **Clean UI**: A borderless, theme-aware layout that fits perfectly into your VS Code workspace with real-time "Working..." and chronological Tool Action statuses.
 - **Conversation History**: Persistent chat history with multi-chat management.
 
 ## 🛠️ Getting Started

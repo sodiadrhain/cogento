@@ -1,10 +1,10 @@
 export interface AgentTool {
   name: string;
   description: string;
-  schema: any; // JSON Schema for the tool inputs
+  schema: Record<string, unknown>; // JSON Schema for the tool inputs
   requiresApproval?: boolean;
-  getPreExecutionInfo?(input: any): Promise<any>;
-  execute(input: any, onProgress?: (data: string) => void): Promise<ToolResult>;
+  getPreExecutionInfo?(input: unknown): Promise<unknown>;
+  execute(input: unknown, onProgress?: (data: string) => void): Promise<ToolResult>;
 }
 
 export interface ToolResult {

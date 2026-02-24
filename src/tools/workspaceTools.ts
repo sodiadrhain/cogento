@@ -14,8 +14,8 @@ export class SearchCodeTool implements AgentTool {
   };
 
   async execute(
-    input: { query: string },
-    onProgress?: (data: string) => void,
+    _input: { query: string },
+    _onProgress?: (data: string) => void,
   ): Promise<ToolResult> {
     try {
       const results = await vscode.workspace.findFiles('**/*');
@@ -28,8 +28,9 @@ export class SearchCodeTool implements AgentTool {
           .map((u) => u.fsPath)
           .join(', ')})`,
       };
-    } catch (error: any) {
-      return { success: false, output: '', error: error.message };
+    } catch (err: unknown) {
+      const e = err as Error;
+      return { success: false, output: '', error: e.message };
     }
   }
 }

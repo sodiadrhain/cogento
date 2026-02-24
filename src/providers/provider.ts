@@ -14,12 +14,19 @@ export interface Message {
 export interface ModelInput {
   systemPrompt: string;
   messages: Message[];
-  tools?: any[];
+  tools?: unknown[];
 }
 
 export interface Token {
   text: string;
   isFinished: boolean;
+}
+
+export class CogentoTimeoutError extends Error {
+  constructor(message: string = 'The AI request timed out after 60 seconds.') {
+    super(message);
+    this.name = 'CogentoTimeoutError';
+  }
 }
 
 export interface LLMProvider {
