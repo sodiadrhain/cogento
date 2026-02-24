@@ -32,17 +32,20 @@ ${JSON.stringify(toolsSchema, null, 2)}
 
 Respond with a JSON object strictly matching this schema:
 {
-    "reasoning": "<your thought process>",
-    "tool_name": "<name of tool to call, or null if finished>",
+    "reasoning": "<your step-by-step thought process>",
+    "tool_name": "<name of tool to call, or null>",
     "tool_input": <object containing tool arguments>,
-    "isFinished": <true if you have fully completed the task, otherwise false>,
-    "finalAnswer": "<Response to the user if finished, or null>"
+    "isFinished": <true ONLY if the ENTIRE task is complete and NO more tools are required, otherwise false>,
+    "finalAnswer": "<A final summary for the user ONLY if isFinished is true, otherwise null>"
 }
 
 CRITICAL INSTRUCTIONS:
 1. Return ONLY valid JSON.
-2. For the \`writeFile\` tool, use \`contentLines\` (an array of strings). Each string represents one line. Do NOT include manual \`\\n\` or \`\\r\\n\` characters in these strings; the tool will join them for you.
-3. Do NOT wrap your response in markdown blocks like \`\`\`json.`;
+2. To apply any changes, you MUST use the \`writeFile\` tool. Describing a change in \`reasoning\` does NOT apply it.
+3. For \`writeFile\`, use \`contentLines\` (an array of strings). Do NOT include manual \`\\n\` or \`\\r\\n\` characters.
+4. Do NOT wrap your response in markdown blocks like \`\`\`json.
+5. If you call a tool, \`isFinished\` should usually be false unless it's the very last step.
+`;
 
     const input = {
       systemPrompt: prompt,

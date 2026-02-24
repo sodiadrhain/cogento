@@ -12,6 +12,7 @@ const btnDelete = document.getElementById('btn-delete');
 const btnAttach = document.getElementById('btn-attach');
 const btnMention = document.getElementById('btn-mention');
 const previewContainer = document.getElementById('preview-container');
+const workingIndicator = document.getElementById('working-indicator');
 
 let currentId = null;
 let currentAttachments = [];
@@ -337,8 +338,8 @@ function closeThoughtBlock() {
         currentThoughtContent = null;
         currentProgressView = null;
     }
-    sendButton.style.display = 'flex';
-    stopButton.style.display = 'none';
+    // sendButton.style.display = 'flex'; // Don't reset buttons here if we might be queueing
+    // stopButton.style.display = 'none';
 }
 
 function handleAgentEvent(event) {
@@ -348,6 +349,13 @@ function handleAgentEvent(event) {
     switch (event.type) {
         case 'start':
             appendThoughtStep(event.text);
+            break;
+        case 'thinking':
+            // Update the header summary to show that agent is thinking
+            const summaryThinking = document.getElementById('active-thought-summary');
+            if (summaryThinking) {
+                summaryThinking.textContent = event.text;
+            }
             break;
         case 'reasoning':
             appendThoughtStep(event.text);
@@ -409,6 +417,20 @@ window.addEventListener('message', eventMsg => {
             break;
         case 'agentEvent':
             handleAgentEvent(message.event);
+            break;
+        case 'agentStatus':
+            if (message.status === 'working') {
+                workingIndicator.classList.add('active');
+                isAgentRunning = true;
+                sendButton.style.display = 'none';
+                stopButton.style.display = 'flex';
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            } else {
+                workingIndicator.classList.remove('active');
+                isAgentRunning = false;
+                sendButton.style.display = 'flex';
+                stopButton.style.display = 'none';
+            }
             break;
         case 'receiveMessage':
             appendMessage(message.text, false);

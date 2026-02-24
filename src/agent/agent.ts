@@ -5,6 +5,7 @@ import { Planner, PlanStep } from './planner';
 export type AgentEventType =
   | 'start'
   | 'reasoning'
+  | 'thinking'
   | 'tool_start'
   | 'tool_progress'
   | 'tool_end'
@@ -29,7 +30,6 @@ export class Agent {
     private onEvent: (event: AgentEvent) => void,
     private askApproval?: (toolName: string, toolInput: any, preInfo?: any) => Promise<boolean>,
     initialHistory?: Message[],
-    private projectInsight: string = '',
   ) {
     if (initialHistory) {
       this.history = [...initialHistory];
@@ -52,8 +52,6 @@ export class Agent {
 
     const systemPrompt = `You are Cogento, an autonomous AI programming agent running in VS Code. 
 
-${this.projectInsight ? 'CONTEXT ABOUT THE CURRENT PROJECT:\n' + this.projectInsight + '\n' : ''}
-
 GUIDELINES:
 1. **Be Conversational**: In your "reasoning" field, describe what you are about to do in a way that keeps the user informed (e.g., "I'm going to create the backend folder and initialize the project...").
 2. **Handle the Environment**: If a tool is missing or a command fails, don't just give up. Analyze the error. If a command like 'nest' is missing, suggest how to install it or try installing it yourself using npm.
@@ -61,7 +59,9 @@ GUIDELINES:
    - When running development servers or long-running processes, prefer using \`spawn\` with \`{ stdio: 'inherit' }\` or piping streams (e.g., \`.pipe(process.stdout)\`). 
    - Avoid using \`exec\` for interactive-like commands as it buffers output and can strip colors/TTY features.
 4. **Non-Interactive Commands**: When using tools like 'npx', always use non-interactive flags (e.g., '-y' or '--yes') to avoid blocking on prompts.
-5. **Think Step-by-Step**: Use your tools logically to satisfy the user's request. Always explain your intent before calling a tool.`;
+5. **Think Step-by-Step**: Use your tools logically to satisfy the user's request. Always explain your intent before calling a tool.
+6. **Actions vs. Words**: Do NOT just describe what you will do. You MUST use tools like \`writeFile\` or \`runCommand\` to actually perform the work. If you say "I will update the file", you must follow that with a tool call to \`writeFile\`.
+7. **JSON Format**: You MUST respond in valid JSON matching the schema provided.`;
 
     let isFinished = false;
     let iterations = 0;
@@ -74,20 +74,12 @@ GUIDELINES:
       }
       iterations++;
       // Plan step
+      this.onEvent({ type: 'thinking', text: 'Thinking...' });
       const { plan, rawText } = await this.planner.generatePlan(this.history, systemPrompt);
 
       this.onEvent({ type: 'reasoning', text: plan.reasoning, data: plan });
 
       if (this.isStopped) break;
-
-      if (plan.isFinished) {
-        isFinished = true;
-        if (plan.finalAnswer) {
-          this.onEvent({ type: 'answer', text: plan.finalAnswer });
-          this.history.push({ role: 'assistant', content: rawText });
-        }
-        break;
-      }
 
       // Execute Tool
       if (plan.tool_name) {
@@ -163,6 +155,13 @@ GUIDELINES:
           role: 'system',
           content: `Tool Result for ${plan.tool_name}:\n${result.success ? result.output : 'Error: ' + result.error}`,
         });
+      } else if (plan.isFinished) {
+        isFinished = true;
+        if (plan.finalAnswer) {
+          this.onEvent({ type: 'answer', text: plan.finalAnswer });
+          this.history.push({ role: 'assistant', content: rawText });
+        }
+        break;
       } else {
         // Agent didn't finish and didn't call a tool
         this.onEvent({ type: 'error', text: `Warning: No tool called and not finished.` });

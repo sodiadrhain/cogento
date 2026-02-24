@@ -10,7 +10,6 @@ import { RunCommandTool } from '../tools/terminalTools';
 import { SearchCodeTool } from '../tools/workspaceTools';
 import { ConversationManager, Conversation } from '../store/ConversationManager';
 import { MessagePart } from '../providers/provider';
-import { WorkspaceIndexer } from '../agent/WorkspaceIndexer';
 
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   public static readonly viewType = 'cogento.chatView';
@@ -18,8 +17,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private _pendingApprovals: Map<string, (approved: boolean) => void> = new Map();
   private currentConversation: Conversation;
   private agent: Agent | null = null;
-  private projectInsight: string = '';
-  private isIndexing: boolean = false;
+  private _messageQueue: { text: string; attachments?: string[] }[] = [];
+  private _isProcessingQueue: boolean = false;
 
   constructor(
     private readonly _extensionUri: vscode.Uri,
@@ -42,7 +41,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
   public resolveWebviewView(
     webviewView: vscode.WebviewView,
-    context: vscode.WebviewViewResolveContext,
+    _context: vscode.WebviewViewResolveContext,
     _token: vscode.CancellationToken,
   ) {
     this._view = webviewView;
@@ -53,9 +52,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     };
 
     webviewView.webview.html = this._getHtmlForWebview();
-    this.indexWorkspace();
 
-    const agent: Agent | null = null;
     const workspacePath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
 
     webviewView.webview.onDidReceiveMessage(async (message) => {
@@ -165,6 +162,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             isUser: true,
             attachments: message.attachments,
           });
+
+          this._messageQueue.push({
+            text: message.text,
+            attachments: message.attachments,
+          });
+
           if (this.currentConversation.title === 'New Chat') {
             this.currentConversation.title = message.text.substring(0, 30) + '...';
             this.conversationManager.saveConversation(this.currentConversation);
@@ -173,150 +176,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             this.conversationManager.saveConversation(this.currentConversation);
           }
 
-          // Instantiate agent lazily
-          if (!this.agent) {
-            const config = vscode.workspace.getConfiguration('cogento');
-            const providerName = config.get<string>('provider', 'openai');
-
-            let provider: LLMProvider;
-
-            if (providerName === 'anthropic') {
-              const key = config.get<string>('apiKeys.anthropic', '');
-              if (!key)
-                return this.showError(
-                  'Anthropic API key is missing. Please go to **Settings > Cogento > Api Keys: Anthropic** and paste your key.',
-                );
-              provider = new AnthropicProvider(key);
-            } else if (providerName === 'gemini') {
-              const key = config.get<string>('apiKeys.gemini', '');
-              if (!key)
-                return this.showError(
-                  'Gemini API key is missing. Please go to **Settings > Cogento > Api Keys: Gemini** and paste your key.',
-                );
-              provider = new GeminiProvider(key);
-            } else {
-              const key = config.get<string>('apiKeys.openai', '');
-              if (!key)
-                return this.showError(
-                  'OpenAI API key is missing. Please go to **Settings > Cogento > Api Keys: OpenAI** and paste your key.',
-                );
-              provider = new OpenAIProvider(key);
-            }
-
-            const tools = [
-              new ReadFileTool(workspacePath),
-              new WriteFileTool(workspacePath),
-              new RunCommandTool(workspacePath),
-              new SearchCodeTool(),
-            ];
-            this.agent = new Agent(
-              provider,
-              tools,
-              (event) => {
-                if (event.type === 'answer') {
-                  this.currentConversation.messages.push({ text: event.text, isUser: false });
-                  this.conversationManager.saveConversation(this.currentConversation);
-                }
-                this._view?.webview.postMessage({ command: 'agentEvent', event });
-              },
-              (toolName, toolInput, preInfo) => {
-                return new Promise((resolve) => {
-                  const requestId = Math.random().toString(36).substring(7);
-                  this._pendingApprovals.set(requestId, resolve);
-                  this._view?.webview.postMessage({
-                    command: 'askApproval',
-                    requestId,
-                    toolName,
-                    toolInput,
-                    preInfo,
-                  });
-                });
-              },
-              this.currentConversation.agentHistory,
-              this.projectInsight,
-            );
-          }
-
-          // Construct Multimodal Payload
-          const payload: MessagePart[] = [{ type: 'text', text: message.text }];
-
-          // Load Context Mentions into the prompt by parsing @filename
-          const mentionRegex = /@([a-zA-Z0-9._/-]+)/g;
-          const matchedMentions = Array.from(message.text.matchAll(mentionRegex)).map(
-            (m: any) => m[1],
-          );
-
-          if (matchedMentions.length > 0) {
-            let mentionText = '\n\n--- Mentioned Context ---\n';
-            for (const filename of matchedMentions) {
-              try {
-                // Clean up trailing slash for resolution if it's a folder
-                const cleanName = filename.endsWith('/') ? filename.slice(0, -1) : filename;
-
-                // 1. Try to find exactly as mentioned (handles relative paths)
-                const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri;
-                let uri: vscode.Uri | undefined;
-
-                if (workspaceRoot) {
-                  uri = vscode.Uri.joinPath(workspaceRoot, cleanName);
-                  try {
-                    await vscode.workspace.fs.stat(uri);
-                  } catch {
-                    uri = undefined; // Not found at root
-                  }
-                }
-
-                // 2. Fallback to searching the workspace if not found at root
-                if (!uri) {
-                  const files = await vscode.workspace.findFiles(
-                    `**/${cleanName}`,
-                    '**/node_modules/**',
-                    1,
-                  );
-                  if (files.length > 0) {
-                    uri = files[0];
-                  }
-                }
-
-                if (uri) {
-                  const stat = await vscode.workspace.fs.stat(uri);
-                  if (stat.type === vscode.FileType.File) {
-                    const data = await vscode.workspace.fs.readFile(uri);
-                    const content = Buffer.from(data).toString('utf-8');
-                    mentionText += `\nFile: ${filename}\n\`\`\`\n${content}\n\`\`\`\n`;
-                  } else if (stat.type === vscode.FileType.Directory) {
-                    const entries = await vscode.workspace.fs.readDirectory(uri);
-                    const filesList = entries
-                      .map(
-                        ([name, type]) => `${name}${type === vscode.FileType.Directory ? '/' : ''}`,
-                      )
-                      .join(', ');
-                    mentionText += `\nDirectory: ${filename}\nContents: [${filesList}]\n`;
-                  }
-                } else {
-                  mentionText += `\nPath: ${filename} (Not found)\n`;
-                }
-              } catch (e) {
-                console.error('Failed to read mention', e);
-                this.showError(`Failed to attach context from ${filename}`);
-              }
-            }
-            payload[0].text += mentionText;
-          }
-
-          // Attach Images
-          if (message.attachments && message.attachments.length > 0) {
-            for (const att of message.attachments) {
-              payload.push({ type: 'image_url', image_url: { url: att } });
-            }
-          }
-
-          // Run the agent with the user's task
-          await this.agent.run(payload);
-
-          // Sync final agent history into DB
-          this.currentConversation.agentHistory = this.agent.getHistory();
-          this.conversationManager.saveConversation(this.currentConversation);
+          this._processQueue();
           return;
         }
 
@@ -339,23 +199,165 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
           if (this.agent) {
             this.agent.stop();
           }
+          this._messageQueue = []; // Clear queue on stop
+          this._isProcessingQueue = false;
           return;
       }
     });
   }
 
-  private async indexWorkspace() {
-    const workspacePath = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
-    if (!workspacePath) return;
+  private async _processQueue() {
+    if (this._isProcessingQueue || this._messageQueue.length === 0) return;
 
-    this.isIndexing = true;
-    this._view?.webview.postMessage({ command: 'indexingStatus', status: 'indexing' });
+    this._isProcessingQueue = true;
+    const workspacePath = vscode.workspace.workspaceFolders?.[0].uri.fsPath || '';
 
-    const indexer = new WorkspaceIndexer(workspacePath);
-    this.projectInsight = await indexer.index();
+    while (this._messageQueue.length > 0) {
+      const message = this._messageQueue.shift()!;
 
-    this.isIndexing = false;
-    this._view?.webview.postMessage({ command: 'indexingStatus', status: 'complete' });
+      this._view?.webview.postMessage({ command: 'agentStatus', status: 'working' });
+
+      // Instantiate agent lazily
+      if (!this.agent) {
+        const config = vscode.workspace.getConfiguration('cogento');
+        const providerName = config.get<string>('provider', 'openai');
+
+        let provider: LLMProvider;
+
+        if (providerName === 'anthropic') {
+          const key = config.get<string>('apiKeys.anthropic', '');
+          if (!key) {
+            this.showError('Anthropic API key is missing.');
+            this._isProcessingQueue = false;
+            return;
+          }
+          provider = new AnthropicProvider(key);
+        } else if (providerName === 'gemini') {
+          const key = config.get<string>('apiKeys.gemini', '');
+          if (!key) {
+            this.showError('Gemini API key is missing.');
+            this._isProcessingQueue = false;
+            return;
+          }
+          provider = new GeminiProvider(key);
+        } else {
+          const key = config.get<string>('apiKeys.openai', '');
+          if (!key) {
+            this.showError('OpenAI API key is missing.');
+            this._isProcessingQueue = false;
+            return;
+          }
+          provider = new OpenAIProvider(key);
+        }
+
+        const tools = [
+          new ReadFileTool(workspacePath),
+          new WriteFileTool(workspacePath),
+          new RunCommandTool(workspacePath),
+          new SearchCodeTool(),
+        ];
+        this.agent = new Agent(
+          provider,
+          tools,
+          (event) => {
+            if (event.type === 'answer') {
+              this.currentConversation.messages.push({ text: event.text, isUser: false });
+              this.conversationManager.saveConversation(this.currentConversation);
+            }
+            this._view?.webview.postMessage({ command: 'agentEvent', event });
+          },
+          (toolName, toolInput, preInfo) => {
+            return new Promise((resolve) => {
+              const requestId = Math.random().toString(36).substring(7);
+              this._pendingApprovals.set(requestId, resolve);
+              this._view?.webview.postMessage({
+                command: 'askApproval',
+                requestId,
+                toolName,
+                toolInput,
+                preInfo,
+              });
+            });
+          },
+          this.currentConversation.agentHistory,
+        );
+      }
+
+      // Construct Multimodal Payload
+      const payload: MessagePart[] = [{ type: 'text', text: message.text }];
+
+      // Load Context Mentions
+      const mentionRegex = /@([a-zA-Z0-9._/-]+)/g;
+      const matchedMentions = Array.from(message.text.matchAll(mentionRegex)).map((m: any) => m[1]);
+
+      if (matchedMentions.length > 0) {
+        let mentionText = '\n\n--- Mentioned Context ---\n';
+        for (const filename of matchedMentions) {
+          try {
+            const cleanName = filename.endsWith('/') ? filename.slice(0, -1) : filename;
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri;
+            let uri: vscode.Uri | undefined;
+
+            if (workspaceRoot) {
+              uri = vscode.Uri.joinPath(workspaceRoot, cleanName);
+              try {
+                await vscode.workspace.fs.stat(uri);
+              } catch {
+                uri = undefined;
+              }
+            }
+
+            if (!uri) {
+              const files = await vscode.workspace.findFiles(
+                `**/${cleanName}`,
+                '**/node_modules/**',
+                1,
+              );
+              if (files.length > 0) uri = files[0];
+            }
+
+            if (uri) {
+              const stat = await vscode.workspace.fs.stat(uri);
+              if (stat.type === vscode.FileType.File) {
+                const data = await vscode.workspace.fs.readFile(uri);
+                const content = Buffer.from(data).toString('utf-8');
+                mentionText += `\nFile: ${filename}\n\`\`\`\n${content}\n\`\`\`\n`;
+              } else if (stat.type === vscode.FileType.Directory) {
+                const entries = await vscode.workspace.fs.readDirectory(uri);
+                const filesList = entries
+                  .map(([name, type]) => `${name}${type === vscode.FileType.Directory ? '/' : ''}`)
+                  .join(', ');
+                mentionText += `\nDirectory: ${filename}\nContents: [${filesList}]\n`;
+              }
+            }
+          } catch (e) {
+            console.error('Failed to read mention', e);
+          }
+        }
+        payload[0].text += mentionText;
+      }
+
+      if (message.attachments && message.attachments.length > 0) {
+        for (const att of message.attachments) {
+          payload.push({ type: 'image_url', image_url: { url: att } });
+        }
+      }
+
+      try {
+        await this.agent.run(payload);
+      } catch (e: any) {
+        this._view?.webview.postMessage({
+          command: 'agentEvent',
+          event: { type: 'error', text: `Agent Run Error: ${e.message}` },
+        });
+      }
+
+      this.currentConversation.agentHistory = this.agent.getHistory();
+      this.conversationManager.saveConversation(this.currentConversation);
+    }
+
+    this._isProcessingQueue = false;
+    this._view?.webview.postMessage({ command: 'agentStatus', status: 'idle' });
   }
 
   // Method to programmatically add a message to the chat view from the extension
@@ -414,6 +416,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     height: 100vh;
                     box-sizing: border-box;
                     margin: 0;
+                    overflow: hidden;
+                }
+                * {
+                    box-sizing: border-box;
                 }
                 #top-bar {
                     display: flex;
@@ -774,6 +780,23 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 @keyframes spin {
                     to { transform: rotate(360deg); }
                 }
+
+                #working-indicator {
+                    display: none;
+                    padding: 8px 12px;
+                    align-items: center;
+                    gap: 8px;
+                    color: var(--vscode-descriptionForeground);
+                    font-size: 11px;
+                }
+                #working-indicator.active {
+                    display: flex;
+                }
+                #working-indicator .spinner {
+                    border: 1px solid var(--vscode-descriptionForeground);
+                    border-top-color: transparent;
+                }
+
                 
                 /* Code block copy button styling */
                 .code-block-container {
@@ -900,6 +923,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 </button>
             </div>
             <div id="chat-container">
+            </div>
+            <div id="working-indicator">
+                <div class="spinner"></div>
+                <span>Working...</span>
             </div>
             <div id="preview-container"></div>
             <div id="input-container" style="position: relative;">
