@@ -6,7 +6,7 @@ import { LLMProvider } from '../providers/provider';
 import { OpenAIProvider } from '../providers/openai';
 import { AnthropicProvider } from '../providers/anthropic';
 import { GeminiProvider } from '../providers/gemini';
-import { ReadFileTool, WriteFileTool, WriteMultipleFilesTool } from '../tools/fileTools';
+import { EditFileTool, ReadFileTool, WriteFileTool, WriteMultipleFilesTool } from '../tools/fileTools';
 import { RunCommandTool } from '../tools/terminalTools';
 import {
   FindSymbolReferencesTool,
@@ -365,6 +365,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             new ReadFileTool(workspacePath),
             new WriteFileTool(workspacePath),
             new WriteMultipleFilesTool(workspacePath),
+            new EditFileTool(workspacePath),
             new RunCommandTool(workspacePath),
             new SearchCodeTool(),
             new SearchWorkspaceSymbolTool(),

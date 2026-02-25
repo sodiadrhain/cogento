@@ -212,3 +212,104 @@ export class WriteMultipleFilesTool implements AgentTool {
     }
   }
 }
+
+export class EditFileTool implements AgentTool {
+  name = 'editFile';
+  description =
+    'Replaces exact blocks of text in a file. Use this for surgical edits instead of rewriting the entire file.';
+  schema = {
+    type: 'object',
+    properties: {
+      filePath: { type: 'string', description: 'Relative or absolute path to the file.' },
+      replacements: {
+        type: 'array',
+        description: 'Array of search-and-replace blocks.',
+        items: {
+          type: 'object',
+          properties: {
+            targetContent: {
+              type: 'string',
+              description:
+                'The exact block of text to be replaced. Must uniquely match something in the file. Include sufficient context lines if the string is short.',
+            },
+            replacementContent: {
+              type: 'string',
+              description: 'The new text to replace the targetContent with.',
+            },
+          },
+          required: ['targetContent', 'replacementContent'],
+        },
+      },
+    },
+    required: ['filePath', 'replacements'],
+  };
+  requiresApproval = true;
+
+  constructor(private workspaceRoot: string) {}
+
+  async getPreExecutionInfo(input: {
+    filePath: string;
+    replacements: { targetContent: string; replacementContent: string }[];
+  }): Promise<unknown> {
+    if (!this.workspaceRoot) return null;
+    try {
+      const absolutePath = path.resolve(this.workspaceRoot, input.filePath);
+      const uri = vscode.Uri.file(absolutePath);
+      const data = await vscode.workspace.fs.readFile(uri);
+      const oldContent = new TextDecoder('utf-8').decode(data);
+
+      let newContent = oldContent;
+      for (const rep of input.replacements) {
+        newContent = newContent.replace(rep.targetContent, rep.replacementContent);
+      }
+
+      return {
+        type: 'file_change',
+        filePath: input.filePath,
+        oldContent,
+        newContent,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  async execute(
+    input: {
+      filePath: string;
+      replacements: { targetContent: string; replacementContent: string }[];
+    },
+    onProgress?: (data: string) => void,
+  ): Promise<ToolResult> {
+    if (!this.workspaceRoot) {
+      return { success: false, output: '', error: 'No workspace folder is open.' };
+    }
+    try {
+      const absolutePath = path.resolve(this.workspaceRoot, input.filePath);
+      const uri = vscode.Uri.file(absolutePath);
+      const data = await vscode.workspace.fs.readFile(uri);
+      let content = new TextDecoder('utf-8').decode(data);
+
+      for (const rep of input.replacements) {
+        if (content.indexOf(rep.targetContent) === -1) {
+          return {
+            success: false,
+            output: '',
+            error: `Failed to edit ${input.filePath}. Target content not found exactly as written. Ensure indentation and line breaks perfectly match the file.`,
+          };
+        }
+        content = content.replace(rep.targetContent, rep.replacementContent);
+      }
+
+      const writeData = new TextEncoder().encode(content);
+      if (onProgress) {
+        onProgress(`Applying surgical edits to ${input.filePath}...\n`);
+      }
+      await vscode.workspace.fs.writeFile(uri, writeData);
+      return { success: true, output: `Successfully edited ${input.filePath}` };
+    } catch (err: unknown) {
+      const e = err as Error;
+      return { success: false, output: '', error: e.message };
+    }
+  }
+}
