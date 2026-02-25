@@ -1,9 +1,10 @@
-import { spawn } from 'child_process';
+import * as vscode from 'vscode';
 import { AgentTool, ToolResult } from './index';
 
 export class RunCommandTool implements AgentTool {
   name = 'runCommand';
-  description = 'Runs a shell command in the workspace root. Must be approved by the user.';
+  description =
+    'Runs a shell command in the workspace root by opening a new visible VS Code Terminal. Use this for starting servers, running complex builds, or anything that requires user visibility.';
   requiresApproval = true;
   schema = {
     type: 'object',
@@ -12,6 +13,8 @@ export class RunCommandTool implements AgentTool {
     },
     required: ['command'],
   };
+
+  private agentTerminal: vscode.Terminal | null = null;
 
   constructor(private workspaceRoot: string) {}
 
@@ -27,51 +30,30 @@ export class RunCommandTool implements AgentTool {
       };
     }
 
-    const command = input.command;
+    try {
+      if (onProgress) onProgress(`\nOpening terminal to run: ${input.command}\n`);
 
-    return new Promise((resolve) => {
-      // Using spawn to get streaming output
-      const child = spawn(command, {
-        cwd: this.workspaceRoot,
-        shell: true,
-        timeout: 60000,
-      });
+      // Reuse the existing agent terminal if it exists, otherwise create a new one
+      if (!this.agentTerminal || this.agentTerminal.exitStatus) {
+        this.agentTerminal = vscode.window.createTerminal({
+          name: 'Cogento Execution',
+          cwd: this.workspaceRoot,
+        });
+      }
 
-      let stdout = '';
-      let stderr = '';
+      this.agentTerminal.show(true); // show but don't steal focus
+      this.agentTerminal.sendText(input.command);
 
-      child.stdout.on('data', (data) => {
-        const chunk = data.toString();
-        stdout += chunk;
-        if (onProgress) onProgress(chunk);
-      });
-
-      child.stderr.on('data', (data) => {
-        const chunk = data.toString();
-        stderr += chunk;
-        if (onProgress) onProgress(chunk);
-      });
-
-      child.on('close', (code) => {
-        let output = stdout || '';
-        if (stderr) {
-          output += '\nStandard Error:\n' + stderr;
-        }
-
-        if (code !== 0) {
-          const msg =
-            stderr.includes('not found') || stderr.includes('command not found')
-              ? `Command not found: ${command.split(' ')[0]}. Is it installed and in your PATH?`
-              : `Command failed with exit code ${code}`;
-          resolve({ success: false, output, error: msg });
-        } else {
-          resolve({ success: true, output });
-        }
-      });
-
-      child.on('error', (error) => {
-        resolve({ success: false, output: stdout, error: error.message });
-      });
-    });
+      return {
+        success: true,
+        output: `Command "${input.command}" was successfully sent to the "Cogento Execution" terminal in VS Code. Please check the terminal panel for the output.`,
+      };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        output: '',
+        error: `Failed to launch terminal: ${(err as Error).message}`,
+      };
+    }
   }
 }
