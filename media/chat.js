@@ -51,6 +51,16 @@ function renderPreviews() {
   });
 }
 
+function escapeHtml(unsafe) {
+  if (typeof unsafe !== 'string') return unsafe;
+  return unsafe
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 // Signal ready
 vscode.postMessage({ command: 'ready' });
 
@@ -455,38 +465,36 @@ window.respondApproval = function (requestId, approved) {
 
   // If approved globally, check if we have individual file decisions
   if (approved) {
-    const fileWrappers = document.querySelectorAll(`.file-decision-wrapper-${requestId}`);
-    if (fileWrappers.length > 0) {
-      const rawInputBlock = document.getElementById(`raw-input-${requestId}`);
-      if (rawInputBlock) {
-        try {
-          const originalInput = JSON.parse(rawInputBlock.textContent);
-          if (originalInput && originalInput.files && Array.isArray(originalInput.files)) {
-            const approvedPaths = new Set();
-            let allRejected = true;
+    const rawInputBlock = document.getElementById(`raw-input-${requestId}`);
+    if (rawInputBlock) {
+      try {
+        const originalInput = JSON.parse(rawInputBlock.textContent);
+        modifiedInput = originalInput; // Start with full input
 
-            fileWrappers.forEach((wrapper) => {
-              const decision = wrapper.dataset.decision; // 'accept' or 'reject'
-              if (decision !== 'reject') {
-                approvedPaths.add(wrapper.dataset.filepath);
-                allRejected = false;
-              }
-            });
+        const fileWrappers = document.querySelectorAll(`.file-decision-wrapper-${requestId}`);
+        if (fileWrappers.length > 0 && originalInput && originalInput.files && Array.isArray(originalInput.files)) {
+          const approvedPaths = new Set();
+          let allRejected = true;
 
-            if (allRejected) {
-              // User selected "Reject" for every single file, then clicked "Execute".
-              // Treat this as a global rejection.
-              approved = false;
-            } else {
-              originalInput.files = originalInput.files.filter((f) =>
-                approvedPaths.has(f.filePath),
-              );
-              modifiedInput = originalInput;
+          fileWrappers.forEach((wrapper) => {
+            const decision = wrapper.dataset.decision; // 'accept' or 'reject'
+            if (decision !== 'reject') {
+              approvedPaths.add(wrapper.dataset.filepath);
+              allRejected = false;
             }
+          });
+
+          if (allRejected) {
+            approved = false;
+          } else {
+            // Apply filtering for multi-file tools
+            originalInput.files = originalInput.files.filter((f) =>
+              approvedPaths.has(f.filePath),
+            );
           }
-        } catch (e) {
-          console.error('Failed to parse original input for partial approval:', e);
         }
+      } catch (e) {
+        console.error('Failed to parse original input for partial approval:', e);
       }
     }
   }
@@ -529,9 +537,11 @@ window.setFileDecision = function (requestId, filePath, decision, btnElement) {
     if (rawInputBlock) {
       try {
         const originalInput = JSON.parse(rawInputBlock.textContent);
-        const fileInfo = originalInput.files.find((f) => f.filePath === filePath);
-        if (fileInfo) {
-          vscode.postMessage({ command: 'partialWrite', fileInfo });
+        if (originalInput && originalInput.files) {
+          const fileInfo = originalInput.files.find((f) => f.filePath === filePath);
+          if (fileInfo && fileInfo.contentLines) {
+            vscode.postMessage({ command: 'partialWrite', fileInfo });
+          }
         }
       } catch { /* ignore */ }
     }
@@ -843,8 +853,8 @@ window.addEventListener('message', (eventMsg) => {
       div.innerHTML = `
                 <div class="approval-box">
                     <strong>Tool Approval Required</strong>
-                    <div style="margin-top:5px">Agent wants to run: <code>${message.toolName}</code></div>
-                    <pre id="raw-input-${message.requestId}" style="margin:8px 0;padding:8px;background:var(--vscode-textCodeBlock-background);border-radius:4px;white-space:pre-wrap;font-size:12px;border:1px solid var(--vscode-panel-border); display: ${displayPreInfo ? 'none' : 'block'}">${JSON.stringify(message.toolInput, null, 2)}</pre>
+                    <div style="margin-top:5px">Agent wants to run: <code>${escapeHtml(message.toolName)}</code></div>
+                    <pre id="raw-input-${message.requestId}" style="margin:8px 0;padding:8px;background:var(--vscode-textCodeBlock-background);border-radius:4px;white-space:pre-wrap;font-size:12px;border:1px solid var(--vscode-panel-border); display: ${displayPreInfo ? 'none' : 'block'}">${escapeHtml(JSON.stringify(message.toolInput, null, 2))}</pre>
                     <div class="approval-diff-container" id="diff-${message.requestId}"></div>
                     <div class="approval-buttons" id="btns-${message.requestId}">
                         <button class="btn-approve" onclick="respondApproval('${message.requestId}', true)">${message.preInfo && message.preInfo.type === 'multi_file_change' ? 'Accept All' : 'Accept & Run'}</button>

@@ -41,7 +41,8 @@ export class ReadFileTool implements AgentTool {
 
 export class WriteFileTool implements AgentTool {
   name = 'writeFile';
-  description = 'Writes content to a file at the given path. Overwrites if it exists.';
+  description =
+    'Writes content to a file at the given path. WARNING: Overwrites the ENTIRE file if it exists. DO NOT use this for existing files (like Vue/Svelte components) unless you intend to completely replace the file. For existing files, use editFile.';
   schema = {
     type: 'object',
     properties: {
@@ -117,7 +118,8 @@ export class WriteFileTool implements AgentTool {
 
 export class WriteMultipleFilesTool implements AgentTool {
   name = 'writeMultipleFiles';
-  description = 'Writes content to multiple files at once. Overwrites if they exist.';
+  description =
+    'Writes content to multiple files at once. WARNING: Overwrites ENTIRE files if they exist. DO NOT use this for modifying existing files. For existing files, use editFile.';
   schema = {
     type: 'object',
     properties: {

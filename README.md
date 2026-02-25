@@ -6,7 +6,12 @@
 
 - **Multi-Provider Support**: Switch seamlessly between OpenAI (GPT-4o), Anthropic (Claude 3.5), and Google Gemini (featuring the latest **Gemini 3 Pro/Flash Preview** models).
 - **Workspace Context Awareness**: Cogento automatically indexes your project structure and tech stack on startup, providing the LLM with immediate architectural context.
-- **Agentic Workflows**: Cogento can read files, write code, run terminal commands, and search your codebase.
+- **Advanced Agentic Architecture**: Cogento acts like a real developer:
+  - **Surgical Code Editing**: Uses search-and-replace block tracking to apply targeted AST diffs without regenerating massive files.
+  - **Live Diagnostics**: Automatically runs linting checks against the VS Code syntax engine after editing a file, reading warning and error traces to self-correct its own code.
+  - **Deep Workspace Indexing**: Leverages native VS Code `findFiles` and regex text parsing for whole-project structural awareness.
+  - **AST Symbol Navigation**: Taps into the Language Server Protocol to instantly find Definitions and References in the editor.
+  - **Visual Terminal Control**: Spawns visible Pseudo-TTY `vscode.window` instances to safely run dev servers, builds, and bash scripts.
 - **Interactive Chat**:
   - **Copy Code**: One-click copy for all generated blocks via inline icons.
   - **Auto-complete Mentions**: Type `@` to suggest and include workspace files and folders in your prompt.

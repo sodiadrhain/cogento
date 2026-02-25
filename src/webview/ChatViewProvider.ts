@@ -234,6 +234,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         case 'partialWrite': {
           const { fileInfo } = message;
+          if (!fileInfo || !fileInfo.contentLines) {
+            console.warn('Partial write ignored: contentLines missing');
+            return;
+          }
+
           if (vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders.length > 0) {
             const workspaceRoot = vscode.workspace.workspaceFolders[0].uri.fsPath;
             const absPath = path.resolve(workspaceRoot, fileInfo.filePath);
