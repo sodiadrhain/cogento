@@ -502,7 +502,7 @@ window.respondApproval = function (requestId, approved) {
   if (btns) {
     if (approved) {
       btns.innerHTML =
-        '<span style="color:var(--vscode-testing-iconPassed); font-size: 12px; font-weight: 500;">✓ Approved. Executing...</span>';
+        '<span style="color:var(--vscode-testing-iconPassed); font-size: 12px; font-weight: 500;">✓ Approved. Running...</span>';
       // Re-trigger busy state immediately so user knows it's working
       isAgentRunning = true;
       sendButton.style.display = 'none';
@@ -606,7 +606,10 @@ function appendThoughtStep(text, className) {
 let currentStreamingReasoning = null;
 
 function closeThoughtBlock() {
+  workingIndicator.classList.remove('active');
   isAgentRunning = false;
+  sendButton.style.display = 'flex';
+  stopButton.style.display = 'none';
   if (currentThoughtBlock) {
     currentThoughtBlock.open = false;
     const summary = currentThoughtBlock.querySelector('summary');

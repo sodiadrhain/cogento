@@ -290,17 +290,49 @@ export class EditFileTool implements AgentTool {
       const absolutePath = path.resolve(this.workspaceRoot, input.filePath);
       const uri = vscode.Uri.file(absolutePath);
       const data = await vscode.workspace.fs.readFile(uri);
-      let content = new TextDecoder('utf-8').decode(data);
+      const normalize = (s: string) => s.replace(/\r\n/g, '\n').replace(/[ \t]+$/gm, '');
+
+      let content = normalize(new TextDecoder('utf-8').decode(data));
 
       for (const rep of input.replacements) {
-        if (content.indexOf(rep.targetContent) === -1) {
-          return {
-            success: false,
-            output: '',
-            error: `Failed to edit ${input.filePath}. Target content not found exactly as written. Ensure indentation and line breaks perfectly match the file.`,
-          };
+        const target = normalize(rep.targetContent);
+        const replacement = normalize(rep.replacementContent);
+
+        if (content.indexOf(target) === -1) {
+          // Fallback: Try whitespace-insensitive matching for individual lines
+          // This is a safety net for LLM indentation hallucinations
+          const contentLines = content.split('\n');
+          const targetLines = target.split('\n');
+          let matchIndex = -1;
+
+          for (let start = 0; start <= contentLines.length - targetLines.length; start++) {
+            let matches = true;
+            for (let l = 0; l < targetLines.length; l++) {
+              if (contentLines[start + l].trim() !== targetLines[l].trim()) {
+                matches = false;
+                break;
+              }
+            }
+            if (matches) {
+              matchIndex = start;
+              break;
+            }
+          }
+
+          if (matchIndex === -1) {
+            return {
+              success: false,
+              output: '',
+              error: `Failed to edit ${input.filePath}. Target content not found (even with fuzzy matching). Ensure the block accurately reflects the file code.`,
+            };
+          }
+
+          // If we found a fuzzy match, replace that specific range of lines
+          contentLines.splice(matchIndex, targetLines.length, replacement);
+          content = contentLines.join('\n');
+        } else {
+          content = content.replace(target, replacement);
         }
-        content = content.replace(rep.targetContent, rep.replacementContent);
       }
 
       const writeData = new TextEncoder().encode(content);

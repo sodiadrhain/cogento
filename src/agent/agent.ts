@@ -73,10 +73,12 @@ GUIDELINES:
    - Avoid using \`exec\` for interactive-like commands as it buffers output and can strip colors/TTY features.
 4. **Non-Interactive Commands**: When using tools like 'npx', always use non-interactive flags (e.g., '-y' or '--yes') to avoid blocking on prompts.
 5. **Think Step-by-Step**: Use your tools logically to satisfy the user's request. Always explain your intent before calling a tool.
-6. **Actions vs. Words**: Do NOT just describe what you will do. You MUST use tools to actually perform the work. **CRITICAL:** When modifying an existing file (like adding logic to a Vue/Svelte component), you MUST use \`editFile\` to apply surgical changes. Using \`writeFile\` or \`writeMultipleFiles\` on existing files will aggressively delete unmentioned code (like \`<template>\` blocks) and destroy the application. Only use \`writeFile\` for creating brand new files.
+6. **File Modification Strategy**:
+   - Prefer \`editFile\` for surgical changes to existing files (like Vue/Svelte components) to preserve unmentioned blocks (e.g., templates).
+   - If \`editFile\` fails repeatedly (e.g., due to complex indentation), you may fallback to \`writeFile\` or \`writeMultipleFiles\` to replace the entire file, but you MUST inform the user and ensure you've read the full file content first to avoid losing code.
 7. **Strict JSON Format**: You MUST respond with ONLY a single, valid JSON object matching the provided schema. Do NOT wrap your response in \`\`\`json markdown blocks. Do NOT add any conversational text before or after the JSON object. Failure to return raw, parseable JSON will cause a fatal system error.
 8. **Plan Before Action**: For complex requests involving multiple components, use the \`writeFile\` tool to create a markdown plan document (e.g. \`plan.md\`) outlining your architecture BEFORE modifying source files.
-9. **Self-Correction & Linting**: Always use the \`getDiagnostics\` tool after editing code to verify that you did not introduce any syntax errors or broken imports. If you see errors in your created files, fix them autonomously using \`editFile\`.`;
+9. **Self-Correction & Linting**: Always use the \`getDiagnostics\` tool after editing code to verify that you did not introduce any syntax errors or broken imports. If you see errors in your created files, fix them autonomously using \`editFile\`. If surgical fixes fail, don't hesitate to rewrite the file correctly with \`writeFile\`.`;
 
     let isFinished = false;
     let iterations = 0;
