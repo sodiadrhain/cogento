@@ -910,18 +910,59 @@ window.addEventListener('message', (eventMsg) => {
   }
 });
 function renderDiff(oldContent, newContent, filePath) {
-  // PERF FIX: Cap lines before diffing. Rendering 1000+ DOM nodes synchronously
-  // blocks the webview main thread and causes the "Working..." freeze.
-  const MAX_DIFF_LINES = 100;
-  let oldLines = (oldContent || '').split('\n');
-  let newLines = (newContent || '').split('\n');
-  const isTruncated = oldLines.length > MAX_DIFF_LINES || newLines.length > MAX_DIFF_LINES;
-  if (oldLines.length > MAX_DIFF_LINES) oldLines = oldLines.slice(0, MAX_DIFF_LINES);
-  if (newLines.length > MAX_DIFF_LINES) newLines = newLines.slice(0, MAX_DIFF_LINES);
+  const oldLines = (oldContent || '').split('\n');
+  const newLines = (newContent || '').split('\n');
+
+  // Helper to determine line differences
+  const diff = [];
+  let i = 0, j = 0;
+  while (i < oldLines.length || j < newLines.length) {
+    if (i < oldLines.length && j < newLines.length && oldLines[i] === newLines[j]) {
+      diff.push({ type: 'normal', oldLine: i + 1, newLine: j + 1, content: oldLines[i] });
+      i++; j++;
+    } else {
+      let moved = false;
+      if (i < oldLines.length && (j >= newLines.length || oldLines[i] !== newLines[j])) {
+        diff.push({ type: 'deletion', oldLine: i + 1, content: oldLines[i] });
+        i++; moved = true;
+      }
+      if (j < newLines.length) {
+        if (i === 0 || i - 1 >= oldLines.length || newLines[j] !== oldLines[i - 1] || !moved) {
+          diff.push({ type: 'addition', newLine: j + 1, content: newLines[j] });
+          j++; moved = true;
+        }
+      }
+      if (!moved) { i++; j++; }
+    }
+  }
+
+  // Identify Hunks (groups of changes with context)
+  const CONTEXT_LINES = 3;
+  const hunks = [];
+  let currentHunk = null;
+
+  diff.forEach((line, idx) => {
+    const isChange = line.type !== 'normal';
+    let isNearChange = false;
+    for (let k = Math.max(0, idx - CONTEXT_LINES); k <= Math.min(diff.length - 1, idx + CONTEXT_LINES); k++) {
+      if (diff[k].type !== 'normal') {
+        isNearChange = true;
+        break;
+      }
+    }
+
+    if (isNearChange) {
+      if (!currentHunk) {
+        currentHunk = { lines: [] };
+        hunks.push(currentHunk);
+      }
+      currentHunk.lines.push(line);
+    } else {
+      currentHunk = null;
+    }
+  });
 
   const box = document.createElement('div');
-
-  // Defensive inline styling to ensure it shows up even if CSS classes are missing
   box.style.margin = '8px 0';
   box.style.border = '1px solid var(--vscode-panel-border)';
   box.style.borderRadius = '4px';
@@ -935,56 +976,33 @@ function renderDiff(oldContent, newContent, filePath) {
   header.style.backgroundColor = 'var(--vscode-editorWidget-background)';
   header.style.borderBottom = '1px solid var(--vscode-panel-border)';
   header.style.fontWeight = 'bold';
-  header.style.display = 'flex';
-  header.style.justifyContent = 'space-between';
-  header.innerHTML = `<span>Change to: ${filePath}</span> <span>(Diff View${isTruncated ? ' — truncated' : ''})</span>`;
+  header.innerHTML = `<span>Change to: ${filePath}</span>`;
   box.appendChild(header);
 
   const container = document.createElement('div');
-  container.style.maxHeight = '250px';
+  container.style.maxHeight = '300px';
   container.style.overflowY = 'auto';
   container.style.whiteSpace = 'pre';
   container.style.padding = '4px 0';
 
-  let i = 0,
-    j = 0;
-  while (i < oldLines.length || j < newLines.length) {
-    if (i < oldLines.length && j < newLines.length && oldLines[i] === newLines[j]) {
-      addLine(container, i + 1, oldLines[i], '');
-      i++;
-      j++;
-    } else {
-      let advanced = false;
-      if (i < oldLines.length && (j >= newLines.length || oldLines[i] !== newLines[j])) {
-        addLine(container, i + 1, oldLines[i], 'deletion');
-        i++;
-        advanced = true;
-      }
-      // Be forgiving: if j needs to advance but the heuristic fails, force it to advance.
-      if (j < newLines.length) {
-        if (i === 0 || i - 1 >= oldLines.length || newLines[j] !== oldLines[i - 1] || !advanced) {
-          addLine(container, j + 1, newLines[j], 'addition');
-          j++;
-          advanced = true;
-        }
-      }
+  if (hunks.length === 0 && diff.length > 0) {
+     // No changes detected? Just show first few lines (shouldn't happen with editFile)
+     diff.slice(0, 10).forEach(l => addLine(container, l.oldLine || l.newLine, l.content, l.type));
+  }
 
-      // Absolute safety net against infinite Webview locks
-      if (!advanced) {
-        if (i < oldLines.length) i++;
-        if (j < newLines.length) j++;
-      }
+  hunks.forEach((hunk, hIdx) => {
+    if (hIdx > 0) {
+      const spacer = document.createElement('div');
+      spacer.style.padding = '4px 8px';
+      spacer.style.backgroundColor = 'var(--vscode-editor-lineHighlightBackground)';
+      spacer.style.color = 'var(--vscode-descriptionForeground)';
+      spacer.style.textAlign = 'center';
+      spacer.style.fontSize = '10px';
+      spacer.textContent = '... skipped lines ...';
+      container.appendChild(spacer);
     }
-  }
-
-  if (isTruncated) {
-    const notice = document.createElement('div');
-    notice.style.padding = '4px 8px';
-    notice.style.color = 'var(--vscode-descriptionForeground)';
-    notice.style.fontSize = '10px';
-    notice.textContent = '... (diff truncated to first 100 lines)';
-    container.appendChild(notice);
-  }
+    hunk.lines.forEach(l => addLine(container, l.oldLine || l.newLine, l.content, l.type));
+  });
 
   box.appendChild(container);
   return box;
