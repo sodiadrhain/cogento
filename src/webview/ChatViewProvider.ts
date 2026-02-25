@@ -8,7 +8,11 @@ import { AnthropicProvider } from '../providers/anthropic';
 import { GeminiProvider } from '../providers/gemini';
 import { ReadFileTool, WriteFileTool, WriteMultipleFilesTool } from '../tools/fileTools';
 import { RunCommandTool } from '../tools/terminalTools';
-import { SearchCodeTool } from '../tools/workspaceTools';
+import {
+  FindSymbolReferencesTool,
+  SearchCodeTool,
+  SearchWorkspaceSymbolTool,
+} from '../tools/workspaceTools';
 import { ConversationManager, Conversation } from '../store/ConversationManager';
 import { MessagePart } from '../providers/provider';
 
@@ -363,6 +367,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             new WriteMultipleFilesTool(workspacePath),
             new RunCommandTool(workspacePath),
             new SearchCodeTool(),
+            new SearchWorkspaceSymbolTool(),
+            new FindSymbolReferencesTool(workspacePath),
           ];
           this.agent = new Agent(
             provider,
