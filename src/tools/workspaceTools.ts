@@ -220,3 +220,81 @@ export class FindSymbolReferencesTool implements AgentTool {
     }
   }
 }
+
+export class GetDiagnosticsTool implements AgentTool {
+  name = 'getDiagnostics';
+  description =
+    'Retrieves compiler errors and warnings (from TypeScript, ESLint, Python, etc) present in the workspace. Use this after writing or editing code to verify that you did not introduce any syntax errors or break imports.';
+  schema = {
+    type: 'object',
+    properties: {
+      filePath: {
+        type: 'string',
+        description:
+          'Optional relative or absolute file path to filter diagnostics for a specific file.',
+      },
+    },
+  };
+
+  constructor(private workspaceRoot: string) {}
+
+  async execute(input: { filePath?: string }): Promise<ToolResult> {
+    try {
+      let targetUri: vscode.Uri | undefined;
+
+      if (input.filePath && this.workspaceRoot) {
+        const absolutePath = path.resolve(this.workspaceRoot, input.filePath);
+        targetUri = vscode.Uri.file(absolutePath);
+      }
+
+      const allDiagnostics = vscode.languages.getDiagnostics();
+      const results: string[] = [];
+      let totalIssues = 0;
+
+      for (const [uri, diagnostics] of allDiagnostics) {
+        // Skip if not the target file
+        if (targetUri && uri.fsPath !== targetUri.fsPath) continue;
+
+        // Only care about Errors (0) and Warnings (1). Skip Information (2) and Hints (3).
+        const relevant = diagnostics.filter(
+          (d) =>
+            d.severity === vscode.DiagnosticSeverity.Error ||
+            d.severity === vscode.DiagnosticSeverity.Warning,
+        );
+
+        if (relevant.length === 0) continue;
+
+        const relativePath = vscode.workspace.asRelativePath(uri);
+        results.push(`\n=== ${relativePath} ===`);
+
+        for (const diag of relevant) {
+          totalIssues++;
+          const line = diag.range.start.line + 1;
+          const severity = diag.severity === vscode.DiagnosticSeverity.Error ? 'ERROR' : 'WARNING';
+          const source = diag.source ? `[${diag.source}] ` : '';
+          results.push(`Line ${line}: [${severity}] ${source}${diag.message}`);
+        }
+      }
+
+      if (results.length === 0) {
+        return {
+          success: true,
+          output: input.filePath
+            ? `No errors or warnings found in ${input.filePath}. Great job!`
+            : 'No errors or warnings found in the workspace. The code is clean!',
+        };
+      }
+
+      return {
+        success: true,
+        output: `Found ${totalIssues} issues:\n${results.join('\n')}`,
+      };
+    } catch (err: unknown) {
+      return {
+        success: false,
+        output: '',
+        error: `Failed to retrieve diagnostics: ${(err as Error).message}`,
+      };
+    }
+  }
+}

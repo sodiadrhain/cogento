@@ -12,6 +12,7 @@ import {
   FindSymbolReferencesTool,
   SearchCodeTool,
   SearchWorkspaceSymbolTool,
+  GetDiagnosticsTool,
 } from '../tools/workspaceTools';
 import { ConversationManager, Conversation } from '../store/ConversationManager';
 import { MessagePart } from '../providers/provider';
@@ -370,6 +371,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             new SearchCodeTool(),
             new SearchWorkspaceSymbolTool(),
             new FindSymbolReferencesTool(workspacePath),
+            new GetDiagnosticsTool(workspacePath),
           ];
           this.agent = new Agent(
             provider,

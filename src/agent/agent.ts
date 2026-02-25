@@ -74,7 +74,9 @@ GUIDELINES:
 4. **Non-Interactive Commands**: When using tools like 'npx', always use non-interactive flags (e.g., '-y' or '--yes') to avoid blocking on prompts.
 5. **Think Step-by-Step**: Use your tools logically to satisfy the user's request. Always explain your intent before calling a tool.
 6. **Actions vs. Words**: Do NOT just describe what you will do. You MUST use tools like \`writeFile\` or \`runCommand\` to actually perform the work. If you say "I will update the file", you must follow that with a tool call to \`writeFile\`.
-7. **Strict JSON Format**: You MUST respond with ONLY a single, valid JSON object matching the provided schema. Do NOT wrap your response in \`\`\`json markdown blocks. Do NOT add any conversational text before or after the JSON object. Failure to return raw, parseable JSON will cause a fatal system error.`;
+7. **Strict JSON Format**: You MUST respond with ONLY a single, valid JSON object matching the provided schema. Do NOT wrap your response in \`\`\`json markdown blocks. Do NOT add any conversational text before or after the JSON object. Failure to return raw, parseable JSON will cause a fatal system error.
+8. **Plan Before Action**: For complex requests involving multiple components, use the \`writeFile\` tool to create a markdown plan document (e.g. \`plan.md\`) outlining your architecture BEFORE modifying source files.
+9. **Self-Correction & Linting**: Always use the \`getDiagnostics\` tool after editing code to verify that you did not introduce any syntax errors or broken imports. If you see errors in your created files, fix them autonomously using \`editFile\`.`;
 
     let isFinished = false;
     let iterations = 0;
