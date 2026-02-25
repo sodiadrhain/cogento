@@ -9,7 +9,11 @@ export function activate(context: vscode.ExtensionContext) {
   const provider = new ChatViewProvider(context.extensionUri, conversationManager);
 
   context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider),
+    vscode.window.registerWebviewViewProvider(ChatViewProvider.viewType, provider, {
+      webviewOptions: {
+        retainContextWhenHidden: true,
+      },
+    }),
   );
 
   // Provide a command to manually focus the sidebar if desired

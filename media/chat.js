@@ -32,6 +32,19 @@ const suggestionsPopup = document.getElementById('suggestions-popup');
 sendButton.style.display = 'flex';
 stopButton.style.display = 'none';
 
+// Restore state (e.g., draft message)
+const previousState = vscode.getState() || {};
+if (previousState.draft) {
+  messageInput.value = previousState.draft;
+  // Trigger resize if auto-resize logic exists
+  messageInput.dispatchEvent(new Event('input'));
+}
+
+messageInput.addEventListener('input', () => {
+  const currentState = vscode.getState() || {};
+  vscode.setState({ ...currentState, draft: messageInput.value });
+});
+
 function renderPreviews() {
   previewContainer.innerHTML = '';
   currentAttachments.forEach((att, idx) => {
@@ -345,13 +358,17 @@ function sendMessage() {
     vscode.postMessage({
       command: 'sendMessage',
       text: text,
-      attachments: currentAttachments.map((a) => a.dataUri),
+      attachments: atts,
     });
 
     messageInput.value = '';
     messageInput.style.height = 'auto';
     currentAttachments = [];
     renderPreviews();
+
+    // Clear draft state after sending
+    const currentState = vscode.getState() || {};
+    vscode.setState({ ...currentState, draft: '' });
 
     sendButton.style.display = 'none';
     stopButton.style.display = 'flex';
